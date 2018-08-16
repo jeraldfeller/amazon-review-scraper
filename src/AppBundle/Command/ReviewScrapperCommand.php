@@ -48,6 +48,7 @@ class ReviewScrapperCommand extends ContainerAwareCommand
                 'verify' => false,
             ));
             $client->setClient($guzzleClient);
+            $continue = true;
             if ($reviewLink == '') {
                 $crawler = $client->request('GET', $url);
                 if ($crawler) {
@@ -62,13 +63,13 @@ class ReviewScrapperCommand extends ContainerAwareCommand
                         $em->flush();
                     }catch(Exception $e) { // I guess its InvalidArgumentException in this case
                         // Node list is empty
+                        $continue = false;
                     }
+
                 }
             }
-
-
             $pg = 1;
-            $continue = true;
+
             while ($continue == true) {
                 // new client for review url
                 $crawler = $client->request('GET', $reviewLink . '&pageNumber=' . $pg);
@@ -91,10 +92,9 @@ class ReviewScrapperCommand extends ContainerAwareCommand
                             'message' => $message = $node->filter('.review-text')->eq(0)->text()
                         );
                     });
-                    if (count($reviews) == 0) {
+                    if (count($reviews) == 0 || count($reviews) < 10) {
                         $continue = false;
                     }
-                    $currentReviewListCount = 0;
                     for ($x = 0; $x < count($reviews); $x++) {
                         $reviewEntity = $em->getRepository('AppBundle:Reviews')->findOneBy(array('reviewId' => $reviews[$x]['id']));
                         if (!$reviewEntity) {
@@ -117,13 +117,10 @@ class ReviewScrapperCommand extends ContainerAwareCommand
                                 $em->persist($reviewEntity);
                             } else {
                                 $continue == false;
+                                $output->writeln(['year 2016']);
                             }
                         }
 
-                        $currentReviewListCount++;
-                        if ($currentReviewListCount < 10) {
-                            $continue = false;
-                        }
                     }
                     $em->flush();
 
