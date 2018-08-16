@@ -14,6 +14,7 @@ use AppBundle\Controller\SessionController;
 
 use Symfony\Component\DomCrawler\Crawler;
 use Goutte\Client;
+use GuzzleHttp\Client as GuzzleClient;
 
 
 class ReviewScrapperCommand extends ContainerAwareCommand
@@ -43,11 +44,15 @@ class ReviewScrapperCommand extends ContainerAwareCommand
             $url = "https://www.amazon.$locale/dp/$asin";
             $reviewLink = $asins[$i]->getAsinReviewUrl();
             $client = new Client();
+            $guzzleClient = new GuzzleClient(array(
+                'verify' => false,
+            ));
+            $client->setClient($guzzleClient);
             if ($reviewLink == '') {
                 $crawler = $client->request('GET', $url);
                 if ($crawler) {
                     $reviewLinkNode = $crawler->filter('#dp-summary-see-all-reviews');
-                    if ($reviewLinkNode) {
+                    try{
                         $href = $reviewLinkNode->attr('href');
                         $reviewLink = "https://www.amazon.$locale.$href&sortBy=recent";
                         $output->writeln([
@@ -55,6 +60,8 @@ class ReviewScrapperCommand extends ContainerAwareCommand
                         ]);
                         $entity->setAsinReviewUrl($reviewLink);
                         $em->flush();
+                    }catch(Exception $e) { // I guess its InvalidArgumentException in this case
+                        // Node list is empty
                     }
                 }
             }
